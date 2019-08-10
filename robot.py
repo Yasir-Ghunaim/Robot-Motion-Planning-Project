@@ -11,13 +11,13 @@ class Robot(object):
         '''
 
         self.location = [0, 0]
-        self.heading = 'up'
+        self.heading = 'u'
         self.maze_dim = maze_dim
 
-        self.dir_sensors = {'up': ['left', 'up', 'right'], 'right': ['up', 'right', 'down'],
-                       'down': ['right', 'down', 'left'], 'left': ['down', 'left', 'up']}
+        self.dir_sensors = {'u': ['l', 'u', 'r'], 'r': ['u', 'r', 'd'],
+                       'd': ['r', 'd', 'l'], 'l': ['d', 'l', 'u']}
 
-        self.dir_move = {'up': [0, 1], 'right': [1, 0], 'down': [0, -1], 'left': [-1, 0]}
+        self.dir_move = {'u': [0, 1], 'r': [1, 0], 'd': [0, -1], 'l': [-1, 0]}
 
         # Our target is to reach to the center of the maze. Here, we define two values that corrospond to the center
         # For example, if maze is 12x12, counting from 0 to 11 the center would be located in:
@@ -43,6 +43,9 @@ class Robot(object):
         # Keep track of number of steps taken to reach each block
         # -1 indicates that the corrosponding cell has not been explored
         self.costMap = np.array([[-1 for col in range(maze_dim)] for row in range(maze_dim)])
+
+        # Track action(direction) taken in each explored cell
+        self.actionMap = np.array([['' for col in range(maze_dim)] for row in range(maze_dim)])
 
         self.run = 0
 
@@ -70,10 +73,6 @@ class Robot(object):
         '''
         rotation = 0
         movement = 0
-        #print "------------"
-        #print self.location
-
-
         # --------------- Run 0  ---------------
 
         if self.run == 0:
@@ -81,8 +80,9 @@ class Robot(object):
             if self.location in self.goal:
                 rotation = 'Reset'
                 movement = 'Reset'
+                finalLocation = self.location
                 self.location = [0, 0]
-                self.heading = 'up'
+                self.heading = 'u'
                 self.run = 1
 
             # We are still exploring
@@ -111,6 +111,7 @@ class Robot(object):
 
                     lowestCostMove = sortedCostList[0]
                     nextDirection = lowestCostMove["direction"]
+                    self.actionMap[self.location[0]][self.location[1]] = nextDirection
                     self.location = lowestCostMove["location"]
 
 
@@ -127,48 +128,20 @@ class Robot(object):
 
                 # If we are moving to a previously explored block, we will take the minimum cost value between the block's cost and the current cost
                 # This is helpful to determine the shorthest path
-                #if nextDirection == "stuck":
-                    # Assign a high cost value to this block as it leads to a dead-end 
-                #    self.costMap[self.location[0]][self.location[1]] = 999
-                #else:
                 nextLocationCost = self.costMap[self.location[0]][self.location[1]]
                 if nextLocationCost > 0:
                     self.g_value = min(self.g_value, nextLocationCost) 
                 self.costMap[self.location[0]][self.location[1]] = self.g_value
 
-
-                #print self.heading
-                #self.print_cell_values(self.costMap)
+                #self.print_cell_values(self.actionMap)
 
 
         # --------------- Run 1  ---------------
         else:
-            self.print_cell_values(self.costMap)
-            '''validMoves = self.get_valid_next_moves(self.location, sensors)
-
-            costList = []
-            for move in validMoves:
-                nextCost = self.costMap[move["location"][0]][move["location"][1]]
-                costList.append({
-                    "cost":nextCost,
-                    "location": move["location"],
-                    "direction": move["direction"]
-                    })
-            # Get the least costly next move
-            sortedCostList = sorted(costList, key=lambda x: x["cost"], reverse=False)
-            print sortedCostList
-
-            lowestCostMove = sortedCostList[0]
-            nextDirection = lowestCostMove["direction"]
+            nextDirection = self.actionMap[self.location[0]][self.location[1]]
             movement, rotation = self.get_movement_rotation(nextDirection)
-            self.location = lowestCostMove["location"]
+            self.location = self.make_a_move(self.location, nextDirection, 1)
             self.heading = nextDirection
-
-            print self.heading
-            print self.location
-            print "-----------"'''
-
-
 
         return rotation, movement
 
