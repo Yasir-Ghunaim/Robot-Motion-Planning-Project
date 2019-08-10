@@ -1,4 +1,5 @@
 import numpy as np
+import itertools
 
 class Robot(object):
     def __init__(self, maze_dim):
@@ -22,7 +23,9 @@ class Robot(object):
         # For example, if maze is 12x12, counting from 0 to 11 the center would be located in:
         # (5,5), (5,6), (6,5), (6,6)
         # For simplicity, we are going to define only the values that x and y should have in the center
-        self.goal = [(maze_dim/2)-1, maze_dim/2] 
+        #self.goal = [(maze_dim/2)-1, maze_dim/2] 
+        maze_center = [(maze_dim/2)-1, maze_dim/2]
+        self.goal = [[product[0], product[1]] for product in itertools.product(maze_center, repeat=2)]
         self.heuristic = self.generate_heuristic()
 
         # Cost for moving one block in the maze
@@ -39,7 +42,9 @@ class Robot(object):
 
         # Keep track of number of steps taken to reach each block
         # -1 indicates that the corrosponding cell has not been explored
-        self.stepsMap = np.array([[-1 for col in range(maze_dim)] for row in range(maze_dim)])
+        self.costMap = np.array([[-1 for col in range(maze_dim)] for row in range(maze_dim)])
+
+        self.run = 0
 
 
     def next_move(self, sensors):
@@ -65,64 +70,104 @@ class Robot(object):
         '''
         rotation = 0
         movement = 0
-        print "------------"
-        print self.location
+        #print "------------"
+        #print self.location
 
 
+        # --------------- Run 0  ---------------
 
-        if self.location[0] in self.goal and self.location[1] in self.goal:
-            rotation = 'Reset'
-            movement = 'Reset'
+        if self.run == 0:
+            # We reached the goal, reset values
+            if self.location in self.goal:
+                rotation = 'Reset'
+                movement = 'Reset'
+                self.location = [0, 0]
+                self.heading = 'up'
+                self.run = 1
+
+            # We are still exploring
+            else:
+                validMoves = self.get_valid_next_moves(self.location, sensors)
+
+                if len(validMoves) == 0:
+                    nextDirection = "stuck"
+                else:
+                    costList = []
+                    # Calcluate the cost for every valid move
+                    for move in validMoves:
+                        nextCost = self.g_value + self.cost
+                        isExplored = self.explored[move["location"][0]][move["location"][1]]
+                        costList.append({
+                            "cost":nextCost + self.heuristic[move["location"][0]][move["location"][1]],
+                            "location": move["location"],
+                            "direction": move["direction"],
+                            "isExplored": isExplored
+                            })
+
+
+                    # Sort costList by total cost to get the least costly next move
+                    # If a cell has been explored, increase its cost by 999
+                    sortedCostList = sorted(costList, key=lambda x: x["cost"] + 999*(x["isExplored"]), reverse=False)
+
+                    lowestCostMove = sortedCostList[0]
+                    nextDirection = lowestCostMove["direction"]
+                    self.location = lowestCostMove["location"]
+
+
+                movement, rotation = self.get_movement_rotation(nextDirection)
+
+                # Update global variables
+                self.g_value += movement
+                if nextDirection == "stuck":
+                    self.heading = self.dir_sensors[self.heading][2]
+                else:
+                    self.heading = nextDirection
+
+                self.explored[self.location[0]][self.location[1]] += 1
+
+                # If we are moving to a previously explored block, we will take the minimum cost value between the block's cost and the current cost
+                # This is helpful to determine the shorthest path
+                #if nextDirection == "stuck":
+                    # Assign a high cost value to this block as it leads to a dead-end 
+                #    self.costMap[self.location[0]][self.location[1]] = 999
+                #else:
+                nextLocationCost = self.costMap[self.location[0]][self.location[1]]
+                if nextLocationCost > 0:
+                    self.g_value = min(self.g_value, nextLocationCost) 
+                self.costMap[self.location[0]][self.location[1]] = self.g_value
+
+
+                #print self.heading
+                #self.print_cell_values(self.costMap)
+
+
+        # --------------- Run 1  ---------------
         else:
-            validMoves = self.get_valid_next_moves(self.location, sensors)
+            self.print_cell_values(self.costMap)
+            '''validMoves = self.get_valid_next_moves(self.location, sensors)
 
-            if len(validMoves) == 0:
-                nextDirection = "stuck"
-            else:
-                costList = []
-                # Calcluate the cost for every valid move
-                for move in validMoves:
-                    nextCost = self.g_value + self.cost
-                    isExplored = self.explored[move["location"][0]][move["location"][1]]
-                    costList.append({
-                        "cost":nextCost + self.heuristic[move["location"][0]][move["location"][1]],
-                        "location": move["location"],
-                        "direction": move["direction"],
-                        "isExplored": isExplored
-                        })
+            costList = []
+            for move in validMoves:
+                nextCost = self.costMap[move["location"][0]][move["location"][1]]
+                costList.append({
+                    "cost":nextCost,
+                    "location": move["location"],
+                    "direction": move["direction"]
+                    })
+            # Get the least costly next move
+            sortedCostList = sorted(costList, key=lambda x: x["cost"], reverse=False)
+            print sortedCostList
 
-
-                # Sort costList by total cost to get the least costly next move
-                # If a cell has been explored, increase its cost by 999
-                sortedCostList = sorted(costList, key=lambda x: x["cost"] + 999*(x["isExplored"]), reverse=False)
-
-                lowestCostMove = sortedCostList[0]
-                nextDirection = lowestCostMove["direction"]
-                self.location = lowestCostMove["location"]
-
-
+            lowestCostMove = sortedCostList[0]
+            nextDirection = lowestCostMove["direction"]
             movement, rotation = self.get_movement_rotation(nextDirection)
-
-            # Update global variables
-            self.g_value += movement
-            if nextDirection == "stuck":
-                self.heading = self.dir_sensors[self.heading][2]
-            else:
-                self.heading = nextDirection
-
-            self.explored[self.location[0]][self.location[1]] += 1
-
-            # If we are moving to a previously explored block, we will take the minimum cost value between the block's cost and the current cost
-            # This is helpful to determine the shorthest path
-            nextLocationCost = self.stepsMap[self.location[0]][self.location[1]]
-            if nextLocationCost > 0:
-                self.g_value = min(self.g_value, nextLocationCost) 
-            self.stepsMap[self.location[0]][self.location[1]] = self.g_value
-
-
+            self.location = lowestCostMove["location"]
+            self.heading = nextDirection
 
             print self.heading
-            self.print_cell_values(self.stepsMap)
+            print self.location
+            print "-----------"'''
+
 
 
         return rotation, movement
@@ -145,10 +190,8 @@ class Robot(object):
         heuristic = [[-1 for col in range(self.maze_dim)] for row in range(self.maze_dim)]
 
         # Fill goal cells with a value of zero
-        heuristic[self.goal[0]][self.goal[0]] = 0
-        heuristic[self.goal[0]][self.goal[1]] = 0
-        heuristic[self.goal[1]][self.goal[0]] = 0
-        heuristic[self.goal[1]][self.goal[1]] = 0
+        for goalCell in self.goal:
+            heuristic[goalCell[0]][goalCell[1]] = 0
 
         while True:
             # Condition for breaking the loop in case we reached to the grid boundaries
