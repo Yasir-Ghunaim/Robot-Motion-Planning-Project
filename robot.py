@@ -40,10 +40,6 @@ class Robot(object):
         # Keep track of number of steps taken to reach each block
         # -1 indicates that the corrosponding cell has not been explored
         self.stepsMap = np.array([[-1 for col in range(maze_dim)] for row in range(maze_dim)])
-        self.stepsCount = 0
-
-        # Record available moves at each block
-        #self.available_moves = [[self.g_value, location[0], location[1]]]
 
 
     def next_move(self, sensors):
@@ -72,7 +68,7 @@ class Robot(object):
         print "------------"
         print self.location
 
-        
+
 
         if self.location[0] in self.goal and self.location[1] in self.goal:
             rotation = 'Reset'
@@ -113,13 +109,20 @@ class Robot(object):
                 self.heading = self.dir_sensors[self.heading][2]
             else:
                 self.heading = nextDirection
-            self.stepsMap[self.location[0]][self.location[1]] = self.g_value
+
             self.explored[self.location[0]][self.location[1]] += 1
+
+            # If we are moving to a previously explored block, we will take the minimum cost value between the block's cost and the current cost
+            # This is helpful to determine the shorthest path
+            nextLocationCost = self.stepsMap[self.location[0]][self.location[1]]
+            if nextLocationCost > 0:
+                self.g_value = min(self.g_value, nextLocationCost) 
+            self.stepsMap[self.location[0]][self.location[1]] = self.g_value
 
 
 
             print self.heading
-            self.print_cell_values(self.explored)
+            self.print_cell_values(self.stepsMap)
 
 
         return rotation, movement
